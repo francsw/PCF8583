@@ -35,7 +35,7 @@ PCF8583::PCF8583(int device_address) {
   address = device_address >> 1;  // convert to 7 bit so Wire doesn't choke
   Wire.begin();
 }
-
+ 
 // initialization 
 
 void PCF8583::init()
