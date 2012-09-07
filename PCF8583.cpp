@@ -26,8 +26,8 @@
 */
 
 
-#include <WProgram.h>
-#include <../Wire/Wire.h>
+#include <Arduino.h>
+#include <Wire.h>
 #include "PCF8583.h"
 
 // provide device address as a full 8 bit address (like the datasheet)
@@ -36,59 +36,124 @@ PCF8583::PCF8583(int device_address) {
   Wire.begin();
 }
 
+// initialization 
+
+void PCF8583::init()
+{
+
+Wire.beginTransmission(address);
+Wire.write(0x00);
+Wire.write(0x04);   // Set alarm on int\ will turn to vcc
+Wire.endTransmission();
+
+}
+
+
+
 void PCF8583::get_time(){
-  Wire.beginTransmission(address);
-  Wire.send(0xC0);   // stop counting, don't mask
-  Wire.endTransmission();
+
 
   Wire.beginTransmission(address);
-  Wire.send(0x02);
+  Wire.write(0x02);
   Wire.endTransmission();
   Wire.requestFrom(address, 5);
 
-  second = bcd_to_byte(Wire.receive());
-  minute = bcd_to_byte(Wire.receive());
-  hour   = bcd_to_byte(Wire.receive());
-  byte incoming = Wire.receive(); // year/date counter
+  second = bcd_to_byte(Wire.read());
+  minute = bcd_to_byte(Wire.read());
+  hour   = bcd_to_byte(Wire.read());
+  byte incoming = Wire.read(); // year/date counter
   day    = bcd_to_byte(incoming & 0x3f);
   year   = (int)((incoming >> 6) & 0x03);      // it will only hold 4 years...
-  month  = bcd_to_byte(Wire.receive() & 0x1f);  // 0 out the weekdays part
+  month  = bcd_to_byte(Wire.read() & 0x1f);  // 0 out the weekdays part
 
   //  but that's not all - we need to find out what the base year is
   //  so we can add the 2 bits we got above and find the real year
   Wire.beginTransmission(address);
-  Wire.send(0x10);
+  Wire.write(0x10);
   Wire.endTransmission();
   Wire.requestFrom(address, 2);
   year_base = 0;
-  year_base = Wire.receive();
+  year_base = Wire.read();
   year_base = year_base << 8;
-  year_base = year_base | Wire.receive();
+  year_base = year_base | Wire.read();
   year = year + year_base;
 }
 
 
-void PCF8583::set_time(){
+void PCF8583::set_time()
+ {
+
   Wire.beginTransmission(address);
-  Wire.send(0xC0);   // stop counting, don't mask
+  Wire.write(0xC0);   // stop counting, don't mask
   Wire.endTransmission();
 
   Wire.beginTransmission(address);
-  Wire.send(0x02);
-  Wire.send(int_to_bcd(second));
-  Wire.send(int_to_bcd(minute));
-  Wire.send(int_to_bcd(hour));
-  Wire.send(((byte)(year % 4) << 6) | int_to_bcd(day));
-  Wire.send(int_to_bcd(month));
+  Wire.write(0x02);
+  Wire.write(int_to_bcd(second));
+  Wire.write(int_to_bcd(minute));
+  Wire.write(int_to_bcd(hour));
+  Wire.write(((byte)(year % 4) << 6) | int_to_bcd(day));
+  Wire.write(int_to_bcd(month));
   Wire.endTransmission();
 
   Wire.beginTransmission(address);
-  Wire.send(0x10);
+  Wire.write(0x10);
   year_base = year - year % 4;
-  Wire.send(year_base >> 8);
-  Wire.send(year_base & 0x00ff);
+  Wire.write(year_base >> 8);
+  Wire.write(year_base & 0x00ff);
   Wire.endTransmission();
+  
+  init(); // re set the control/status register to 0x04
+
+  }
+
+//Get the alarm at 0x09 adress
+
+void PCF8583::get_alarm()
+{
+
+Wire.beginTransmission(address);
+Wire.write(0x0A); // Set the register pointer to (0x0A) 
+Wire.endTransmission();
+
+Wire.requestFrom(address, 4); // Read 4 values 
+
+second_A = bcd_to_byte(Wire.read());
+minute_A = bcd_to_byte(Wire.read());
+hour_A   = bcd_to_byte(Wire.read());
+
+Wire.beginTransmission(address);
+Wire.write(0x0E); 
+Wire.endTransmission();
+
+Wire.requestFrom(address, 1); // Read weekday value 
+
+day_A= bcd_to_byte(Wire.read());
+
 }
+
+
+//Set a daily alarm
+
+void PCF8583::set_daily_alarm()
+{
+
+Wire.beginTransmission(address);
+Wire.write(0x08); 
+Wire.write(0x90);  // daily alarm set 
+Wire.endTransmission();
+
+Wire.beginTransmission(address);
+Wire.write(0x09); // Set the register pointer to (0x09)
+Wire.write(0x00); // Set 00 at milisec 
+Wire.write(int_to_bcd(second_A));
+Wire.write(int_to_bcd(minute_A));
+Wire.write(int_to_bcd(hour_A));
+Wire.write(0x00); // Set 00 at day 
+Wire.endTransmission();
+
+}
+
 
 
 int PCF8583::bcd_to_byte(byte bcd){
@@ -98,4 +163,3 @@ int PCF8583::bcd_to_byte(byte bcd){
 byte PCF8583::int_to_bcd(int in){
   return ((in / 10) << 4) + (in % 10);
 }
-
