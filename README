@@ -1,0 +1,6 @@
+Library to get and set the time on the PCF8583 chip
+You can also set a daily alarm
+Based on work done by:
+http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1276499662
+https://github.com/edebill/PCF8583
+
